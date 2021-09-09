@@ -20,3 +20,10 @@ executable booky
   default-extensions:  NoImplicitPrelude
   build-depends:       base >= 4.7 && < 5
                      , relude
+                     , servant
+                     , servant-server
+                     , servant-client
+                     , servant-docs
+                     , aeson
+                     , wai
+                     , warp

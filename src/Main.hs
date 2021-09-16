@@ -5,63 +5,57 @@
 module Main where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Network.Wai (Application)
 import Network.Wai.Handler.Warp (run)
 import Relude
 import Servant
 
-type UserAPI =
-  "users" :> Get '[JSON] [User]
-    :<|> "users" :> Capture "id" String :> Get '[JSON] (Maybe User)
-    :<|> "users" :> ReqBody '[JSON] User :> PostCreated '[JSON] User
+type ID = String
 
-data User = User
-  { name :: String
-  , age :: Int
-  , email :: String
-  , identifier :: String
+data Environment = Environment
+  { envID :: ID
+  , name :: String
   }
   deriving (Eq, Show, Generic)
 
-instance ToJSON User
-instance FromJSON User
+instance ToJSON Environment
+instance FromJSON Environment
 
-newtype DB = DB
-  { users :: TVar [User]
+type EnvironmentAPI =
+  "environments" :> Get '[JSON] [Environment]
+    :<|> "environments" :> ReqBody '[JSON] Environment :> PostCreated '[JSON] Environment
+    :<|> "environment" :> Capture "id" String :> Get '[JSON] (Maybe Environment)
+
+data DB = DB
+  { environments :: TVar [Environment]
+  , lastIdx :: TVar Int
   }
 
 type AppM = ReaderT DB Handler
 
-albert :: User
-albert = User "Albert Einstein" 136 "ae@mc2.org" "1"
-
-isaac :: User
-isaac = User "Isaac Newton" 372 "isaac@newton.co.uk" "2"
-
-users1 :: [User]
-users1 = [albert, isaac]
-
-getUsers :: AppM [User]
-getUsers = do
-  DB{users = p} <- ask
+getEnvironments :: AppM [Environment]
+getEnvironments = do
+  DB{environments = p} <- ask
   liftIO $ readTVarIO p
 
-singleUser :: String -> AppM (Maybe User)
-singleUser i = do
-  DB{users = p} <- ask
-  us <- readTVarIO p
-  return $ find (\x -> identifier x == i) us
+singleEnvironment :: String -> AppM (Maybe Environment)
+singleEnvironment i = do
+  DB{environments = p} <- ask
+  envs <- readTVarIO p
+  return $ find (\x -> envID x == i) envs
 
-createUser :: User -> AppM User
-createUser u = do
-  DB{users = p} <- ask
-  liftIO $ atomically $ readTVar p >>= writeTVar p . (u :)
-  return u
+createEnvironment :: Environment -> AppM Environment
+createEnvironment e = do
+  DB{environments = p, lastIdx = q} <- ask
+  i <- readTVarIO q
+  let e' = e{envID = show i}
+  liftIO $ atomically $ readTVar p >>= writeTVar p . (e' :)
+  liftIO $ atomically $ readTVar q >>= writeTVar q . succ
+  return e'
 
-server :: ServerT UserAPI AppM
-server = getUsers :<|> singleUser :<|> createUser
+server :: ServerT EnvironmentAPI AppM
+server = getEnvironments :<|> createEnvironment :<|> singleEnvironment
 
-userAPI :: Proxy UserAPI
+userAPI :: Proxy EnvironmentAPI
 userAPI = Proxy
 
 nt :: DB -> AppM a -> Handler a
@@ -73,5 +67,6 @@ app s = serve userAPI $ hoistServer userAPI (nt s) server
 main :: IO ()
 main = do
   putStrLn "running..."
-  initialUsers <- newTVarIO users1
-  run 8081 $ app $ DB initialUsers
+  initialEnvs <- newTVarIO []
+  initialIdx <- newTVarIO 0
+  run 8081 $ app $ DB initialEnvs initialIdx

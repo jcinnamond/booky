@@ -5,6 +5,7 @@
 module Main where
 
 import Data.Aeson (FromJSON, ToJSON)
+import qualified Data.Aeson as JSON
 import Network.Wai.Handler.Warp (run)
 import Relude
 import Servant
@@ -23,7 +24,7 @@ instance FromJSON Environment
 type EnvironmentAPI =
   "environments" :> Get '[JSON] [Environment]
     :<|> "environments" :> ReqBody '[JSON] Environment :> PostCreated '[JSON] Environment
-    :<|> "environment" :> Capture "id" String :> Get '[JSON] (Maybe Environment)
+    :<|> "environment" :> Capture "id" String :> Get '[JSON] Environment
 
 data DB = DB
   { environments :: TVar [Environment]
@@ -37,11 +38,13 @@ getEnvironments = do
   DB{environments = p} <- ask
   liftIO $ readTVarIO p
 
-singleEnvironment :: String -> AppM (Maybe Environment)
+singleEnvironment :: String -> AppM Environment
 singleEnvironment i = do
   DB{environments = p} <- ask
   envs <- readTVarIO p
-  return $ find (\x -> envID x == i) envs
+  case find (\x -> envID x == i) envs of
+    Just e -> return e
+    Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ i ++ " not found."}
 
 createEnvironment :: Environment -> AppM Environment
 createEnvironment e = do

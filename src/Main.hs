@@ -37,13 +37,13 @@ data DB = DB
 
 type AppM = ReaderT DB Handler
 
-getEnvironments :: AppM [Environment]
-getEnvironments = do
+listEnvironments :: AppM [Environment]
+listEnvironments = do
   DB{environments = p} <- ask
   liftIO $ readTVarIO p
 
-singleEnvironment :: String -> AppM Environment
-singleEnvironment i = do
+getEnvironment :: String -> AppM Environment
+getEnvironment i = do
   DB{environments = p} <- ask
   envs <- readTVarIO p
   case find (\x -> envID x == Just i) envs of
@@ -60,7 +60,7 @@ createEnvironment e = do
   return e'
 
 server :: ServerT EnvironmentAPI AppM
-server = getEnvironments :<|> createEnvironment :<|> singleEnvironment
+server = listEnvironments :<|> createEnvironment :<|> getEnvironment
 
 userAPI :: Proxy EnvironmentAPI
 userAPI = Proxy

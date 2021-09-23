@@ -1,10 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
 
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson (FromJSON, ToJSON, Value (Object), (.:))
 import qualified Data.Aeson as JSON
 import Network.Wai.Handler.Warp (run)
 import Relude
@@ -13,13 +14,16 @@ import Servant
 type ID = String
 
 data Environment = Environment
-  { envID :: ID
+  { envID :: Maybe ID
   , name :: String
   }
   deriving (Eq, Show, Generic)
 
 instance ToJSON Environment
-instance FromJSON Environment
+instance FromJSON Environment where
+  parseJSON (Object v) =
+    Environment Nothing <$> v .: "name"
+  parseJSON _ = mzero
 
 type EnvironmentAPI =
   "environments" :> Get '[JSON] [Environment]
@@ -42,7 +46,7 @@ singleEnvironment :: String -> AppM Environment
 singleEnvironment i = do
   DB{environments = p} <- ask
   envs <- readTVarIO p
-  case find (\x -> envID x == i) envs of
+  case find (\x -> envID x == Just i) envs of
     Just e -> return e
     Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ i ++ " not found."}
 
@@ -50,7 +54,7 @@ createEnvironment :: Environment -> AppM Environment
 createEnvironment e = do
   DB{environments = p, lastIdx = q} <- ask
   i <- readTVarIO q
-  let e' = e{envID = show i}
+  let e' = e{envID = Just $ show i}
   liftIO $ atomically $ readTVar p >>= writeTVar p . (e' :)
   liftIO $ atomically $ readTVar q >>= writeTVar q . succ
   return e'

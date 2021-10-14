@@ -18,6 +18,8 @@ executable booky
   main-is:             Main.hs
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
+  other-modules:       DAO
+                     , DB
   build-depends:       base >= 4.7 && < 5
                      , relude
                      , servant
@@ -27,3 +29,4 @@ executable booky
                      , aeson
                      , wai
                      , warp
+                     , time

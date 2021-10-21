@@ -9,6 +9,7 @@ module DB (
 ) where
 
 import qualified DAO
+import Data.Time (UTCTime, getCurrentTime)
 import Relude
 
 data DB = DB
@@ -20,7 +21,7 @@ data DB = DB
 
 initialDB :: IO DB
 initialDB = do
-    initialEnvs <- newTVarIO [DAO.Environment (Just "0") "staging"]
+    initialEnvs <- newTVarIO [DAO.Environment (Just "0") DAO.Available "staging"]
     initialEnvIdx <- newTVarIO 1
     initialBookings <- newTVarIO []
     initialBookingIdx <- newTVarIO 0
@@ -50,10 +51,33 @@ envWithBookings DB{bookings = table} e = do
     allBookings <- readTVarIO table
     let bs = filter (\b -> DAO.bookingEnvID b == DAO.envID e) allBookings
         sortedBs = sortOn (fromMaybe "" . DAO.bookingID) bs
-    return $ DAO.EnvironmentWithBooking (fromMaybe "" $ DAO.envID e) (DAO.name e) sortedBs
+    DAO.EnvironmentWithBooking
+        (fromMaybe "" $ DAO.envID e)
+        (DAO.name e)
+        sortedBs
+        . getStatus bs
+        <$> getCurrentTime
+
+getStatus :: [DAO.Booking] -> UTCTime -> DAO.EnvironmentStatus
+getStatus bs t =
+    case find currentBooking bs of
+        Nothing -> DAO.Available
+        Just _ -> DAO.Booked
+  where
+    currentBooking b = bookingStarted b && bookingNotEnded b
+    bookingStarted b = DAO.bookingFrom b <= t
+    bookingNotEnded b = DAO.bookingTo b >= t
 
 listEnvironments :: DB -> IO [DAO.Environment]
-listEnvironments DB{environments = table} = sortOn DAO.envID <$> readTVarIO table
+listEnvironments DB{environments = envTable, bookings = bookingTable} = do
+    t <- getCurrentTime
+    bookings <- readTVarIO bookingTable
+    envs <- readTVarIO envTable
+    let es = map (setStatus bookings t) envs
+    pure $ sortOn DAO.envID es
+  where
+    setStatus bs t e = e{DAO.envStatus = getStatus (envBookings e bs) t}
+    envBookings e bs = filter (\b -> DAO.bookingEnvID b == DAO.envID e) bs
 
 listBookings :: DAO.ID -> DB -> IO [DAO.Booking]
 listBookings envID DB{bookings = table} =

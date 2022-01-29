@@ -66,7 +66,7 @@ getStatus bs t =
   where
     currentBooking b = bookingStarted b && bookingNotEnded b
     bookingStarted b = DAO.bookingFrom b <= t
-    bookingNotEnded b = DAO.bookingTo b >= t
+    bookingNotEnded b = DAO.endTime b >= t
 
 listEnvironments :: DB -> IO [DAO.Environment]
 listEnvironments DB{environments = envTable, bookings = bookingTable} = do

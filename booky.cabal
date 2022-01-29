@@ -13,13 +13,13 @@ build-type:          Simple
 cabal-version:       >=1.10
 extra-source-files:  README.md
 
-executable booky
+library booky-lib
   hs-source-dirs:      src
-  main-is:             Main.hs
   default-language:    Haskell2010
   default-extensions:  NoImplicitPrelude
-  other-modules:       DAO
-                     , DB
+  exposed-modules: DAO
+                 , DB
+                 , Parser.Duration
   build-depends:       base >= 4.7 && < 5
                      , relude
                      , servant
@@ -30,3 +30,40 @@ executable booky
                      , wai
                      , warp
                      , time
+                     , megaparsec
+                     , hspec
+ 
+executable booky
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  default-extensions:  NoImplicitPrelude
+  build-depends:       base >= 4.7 && < 5
+                     , relude
+                     , servant
+                     , servant-server
+                     , servant-client
+                     , servant-docs
+                     , aeson
+                     , wai
+                     , warp
+                     , time
+                     , hspec
+                     , booky-lib
+
+test-suite booky-test
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     test
+  main-is:            Spec.hs
+  default-language:   Haskell2010
+  default-extensions:  NoImplicitPrelude
+  ghc-options:        -Wall -Werror
+  build-tool-depends: hspec-discover:hspec-discover == 2.*
+  other-modules:
+      Parser.SimpleSpec
+  build-depends:
+      base >= 4.7 && < 5
+    , relude
+    , hspec == 2.*
+    , hspec-megaparsec
+    , booky-lib

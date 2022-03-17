@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module DAO (
     Environment (..),
@@ -10,13 +11,16 @@ module DAO (
     endTime,
 ) where
 
-import Data.Aeson (FromJSON, ToJSON, Value (Object), (.:))
-import Data.Aeson.Types (FromJSON (parseJSON))
+import Data.Aeson (FromJSON, Object, ToJSON, Value (Object), (.:))
+import Data.Aeson.Types (FromJSON (parseJSON), Parser)
+import qualified Data.ByteString.Char8 as B
 import Data.Fixed (Fixed (MkFixed))
 import Data.Time (UTCTime, addUTCTime, secondsToNominalDiffTime)
+import Parser.Duration (parseDuration)
 import Relude
+import Text.Megaparsec (ParseErrorBundle (ParseErrorBundle, bundleErrors))
 
-type ID = String
+type ID = Int
 
 data EnvironmentStatus = Booked | Available
     deriving (Eq, Show, Generic)
@@ -56,16 +60,18 @@ data Booking = Booking
 
 instance ToJSON DAO.Booking
 instance FromJSON DAO.Booking where
-    parseJSON (Object v) =
-        DAO.Booking Nothing Nothing <$> v .: "booking_from" <*> (fromDuration <$> v .: "duration")
+    parseJSON (Object v) = do
+        DAO.Booking Nothing Nothing <$> v .: "booking_from" <*> fromDuration v
     parseJSON _ = mzero
 
 type Second = Int
 
-fromDuration :: String -> Second
-fromDuration "2 hours" = 2 * 3600
-fromDuration "a day" = 24 * 3600
-fromDuration _ = 0
+fromDuration :: Object -> Parser Second
+fromDuration obj = do
+    inp <- obj .: "duration"
+    case parseDuration inp of
+        Left err -> fail $ "could not parse duration '" ++ inp ++ "'"
+        Right s -> pure s
 
 endTime :: Booking -> UTCTime
 endTime b = addUTCTime (fromIntegral $ seconds b) $ bookingFrom b

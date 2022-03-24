@@ -6,7 +6,6 @@ module Main where
 
 import Control.Monad.Logger
 import DAO
-import DB (DB)
 import qualified DB
 import qualified Data.Aeson as JSON
 import Data.Pool
@@ -22,9 +21,8 @@ type EnvironmentAPI =
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> Get '[JSON] [Booking]
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> ReqBody '[JSON] Booking :> PostCreated '[JSON] Booking
 
-data AppConfig = AppConfig
-  { db :: DB
-  , dbConn :: Pool SqlBackend
+newtype AppConfig = AppConfig
+  { dbConn :: Pool SqlBackend
   }
 type AppM = ReaderT AppConfig Handler
 
@@ -42,11 +40,11 @@ createEnvironment :: Environment -> AppM (Maybe Environment)
 createEnvironment e = asks dbConn >>= liftIO . DB.createEnvironment e
 
 listBookings :: DAO.ID -> AppM [Booking]
-listBookings envID = asks db >>= liftIO . DB.listBookings envID
+listBookings envID = asks dbConn >>= liftIO . DB.listBookings envID
 
 createBooking :: DAO.ID -> Booking -> AppM Booking
 createBooking envID b = do
-  b <- asks db >>= liftIO . DB.createBooking envID b
+  b <- asks dbConn >>= liftIO . DB.createBooking envID b
   case b of
     Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ show envID ++ " not found."}
     Just b' -> pure b'
@@ -69,7 +67,6 @@ app s = serve userAPI $ hoistServer userAPI (nt s) server
 main :: IO ()
 main = do
   putStrLn "running..."
-  db <- DB.initialDB
   conn <- runStdoutLoggingT $ createPostgresqlPool "postgresql://booky:booky@localhost" 1
   runSqlPool (runMigration DB.migrateAll) conn
-  run 8081 $ app AppConfig{db = db, dbConn = conn}
+  run 8081 $ app AppConfig{dbConn = conn}

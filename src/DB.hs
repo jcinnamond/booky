@@ -21,12 +21,13 @@ module DB (
     createBooking,
     Environment,
     EnvironmentId,
+    Booking,
     migrateAll,
 ) where
 
 import qualified DAO
 import Data.Pool (Pool)
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import Database.Persist
 import Database.Persist.Postgresql (BackendKey (unSqlBackendKey), SqlBackend, fromSqlKey, runSqlPool, toSqlKey)
 import Database.Persist.TH
@@ -40,6 +41,7 @@ Environment json
 Booking json
     envID EnvironmentId
     startTime UTCTime
+    endTime UTCTime
     duration Int
 |]
 
@@ -63,7 +65,17 @@ getEnvironmentWithBookings id pool = do
 
 isAvailable :: Pool SqlBackend -> Int -> IO DAO.EnvironmentStatus
 isAvailable pool envId = do
-    bookings <- runSqlPool (selectList [BookingEnvID ==. toSqlKey (fromIntegral envId)] [Desc BookingStartTime]) pool
+    now <- getCurrentTime
+    bookings <-
+        runSqlPool
+            ( selectList
+                [ BookingEnvID ==. toSqlKey (fromIntegral envId)
+                , BookingStartTime <=. now
+                , BookingEndTime >=. now
+                ]
+                [Desc BookingStartTime]
+            )
+            pool
     pure $ if null bookings then DAO.Available else DAO.Booked
 
 -- envWithBookings :: DB -> DAO.Environment -> IO DAO.EnvironmentWithBooking
@@ -91,10 +103,17 @@ getStatus bs t =
 listEnvironments :: Pool SqlBackend -> IO [DAO.Environment]
 listEnvironments conn = do
     envs <- runSqlPool (selectList [] []) conn
-    pure $ envWithStatus <$> envs
+    mapM (envWithStatus conn) envs
 
-envWithStatus :: Entity Environment -> DAO.Environment
-envWithStatus e = DAO.Environment{DAO.envID = Just $ theId e, DAO.envStatus = DAO.Available, DAO.name = environmentName (entityVal e)}
+envWithStatus :: Pool SqlBackend -> Entity Environment -> IO DAO.Environment
+envWithStatus pool e = do
+    available <- isAvailable pool (theId e)
+    pure $
+        DAO.Environment
+            { DAO.envID = Just $ theId e
+            , DAO.envStatus = available
+            , DAO.name = environmentName (entityVal e)
+            }
   where
     theId = fromIntegral . fromSqlKey . entityKey
 
@@ -108,28 +127,27 @@ envWithStatus e = DAO.Environment{DAO.envID = Just $ theId e, DAO.envStatus = DA
 --     setStatus bs t e = e{DAO.envStatus = getStatus (envBookings e bs) t}
 --     envBookings e bs = filter (\b -> DAO.bookingEnvID b == DAO.envID e) bs
 
-listBookings :: DAO.ID -> Pool SqlBackend -> IO [DAO.Booking]
-listBookings envID pool = do
-    bookings <- runSqlPool (selectList [BookingEnvID ==. toSqlKey (fromIntegral envID)] [Desc BookingStartTime]) pool
-    pure $ toBooking <$> bookings
-  where
-    toBooking :: Entity Booking -> DAO.Booking
-    toBooking b =
-        DAO.Booking
-            (Just $ theId b)
-            (Just $ theEnvId (entityVal b))
-            (bookingStartTime (entityVal b))
-            (bookingDuration (entityVal b))
-    theEnvId = fromIntegral . fromSqlKey . bookingEnvID
-    theId = fromIntegral . fromSqlKey . entityKey
+listBookings :: DAO.ID -> Pool SqlBackend -> IO [Entity Booking]
+listBookings envID = runSqlPool (selectList [BookingEnvID ==. toSqlKey (fromIntegral envID)] [Desc BookingStartTime])
 
-createBooking :: DAO.ID -> DAO.Booking -> Pool SqlBackend -> IO (Maybe DAO.Booking)
+--   where
+--     toBooking :: Entity Booking -> DAO.Booking
+--     toBooking b =
+--         DAO.Booking
+--             (Just $ theId b)
+--             (Just $ theEnvId (entityVal b))
+--             (bookingStartTime (entityVal b))
+--             (bookingDuration (entityVal b))
+--     theEnvId = fromIntegral . fromSqlKey . bookingEnvID
+--     theId = fromIntegral . fromSqlKey . entityKey
+
+createBooking :: DAO.ID -> DAO.Booking -> Pool SqlBackend -> IO (Maybe Booking)
 createBooking envID b pool = do
-    id <- runSqlPool (insert $ Booking (toSqlKey $ fromIntegral envID) (DAO.bookingFrom b) (DAO.seconds b)) pool
+    id <- runSqlPool (insert $ Booking (toSqlKey $ fromIntegral envID) (DAO.bookingFrom b) (bookingTo b) (DAO.seconds b)) pool
     maybeBooking <- runSqlPool (Database.Persist.get id) pool
     case maybeBooking of
-        Just booking ->
-            pure $
-                Just $
-                    DAO.Booking Nothing Nothing (bookingStartTime booking) (bookingDuration booking)
+        Just booking -> pure $ Just booking
         Nothing -> pure Nothing
+  where
+    bookingTo :: DAO.Booking -> UTCTime
+    bookingTo b = addUTCTime (fromIntegral $ DAO.seconds b) (DAO.bookingFrom b)

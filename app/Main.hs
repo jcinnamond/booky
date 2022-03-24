@@ -18,8 +18,8 @@ type EnvironmentAPI =
   "environments" :> Get '[JSON] [DAO.Environment]
     :<|> "environments" :> ReqBody '[JSON] Environment :> PostCreated '[JSON] (Maybe Environment)
     :<|> "environments" :> Capture "id" DAO.ID :> Get '[JSON] Environment
-    :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> Get '[JSON] [Booking]
-    :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> ReqBody '[JSON] Booking :> PostCreated '[JSON] Booking
+    :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> Get '[JSON] [Entity DB.Booking]
+    :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> ReqBody '[JSON] Booking :> PostCreated '[JSON] DB.Booking
 
 newtype AppConfig = AppConfig
   { dbConn :: Pool SqlBackend
@@ -39,10 +39,10 @@ getEnvironment i = do
 createEnvironment :: Environment -> AppM (Maybe Environment)
 createEnvironment e = asks dbConn >>= liftIO . DB.createEnvironment e
 
-listBookings :: DAO.ID -> AppM [Booking]
+listBookings :: DAO.ID -> AppM [Entity DB.Booking]
 listBookings envID = asks dbConn >>= liftIO . DB.listBookings envID
 
-createBooking :: DAO.ID -> Booking -> AppM Booking
+createBooking :: DAO.ID -> Booking -> AppM DB.Booking
 createBooking envID b = do
   b <- asks dbConn >>= liftIO . DB.createBooking envID b
   case b of

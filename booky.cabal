@@ -20,6 +20,8 @@ library
   exposed-modules: DAO
                  , DB
                  , Parser.Duration
+                 , Environment
+                 , Application
   build-depends:       base >= 4.7 && < 5
                      , relude
                      , servant

@@ -4,6 +4,7 @@
 
 module Main where
 
+import Application (AppConfig, AppM)
 import Control.Monad.Logger
 import DAO
 import qualified DB
@@ -21,17 +22,12 @@ type EnvironmentAPI =
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> Get '[JSON] [Entity DB.Booking]
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> ReqBody '[JSON] Booking :> PostCreated '[JSON] DB.Booking
 
-newtype AppConfig = AppConfig
-  { dbConn :: Pool SqlBackend
-  }
-type AppM = ReaderT AppConfig Handler
-
 listEnvironments :: AppM [DAO.Environment]
 listEnvironments = asks dbConn >>= liftIO . DB.listEnvironments
 
 getEnvironment :: DAO.ID -> AppM Environment
 getEnvironment i = do
-  e <- asks dbConn >>= liftIO . DB.getEnvironmentWithBookings i
+  e <- asks dbConn >>= liftIO . DB.getEnvironments i
   case e of
     Just e -> pure e
     Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ show i ++ " not found."}

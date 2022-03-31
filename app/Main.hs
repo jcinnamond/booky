@@ -4,57 +4,55 @@
 
 module Main where
 
-import Application (AppConfig, AppM)
+import Application (AppConfig (..), AppM)
 import Control.Monad.Logger
-import DAO
+import DAO hiding (Environment)
+import qualified DAO
 import qualified DB
 import qualified Data.Aeson as JSON
 import Data.Pool
 import Database.Persist.Postgresql (Entity, SqlBackend, createPostgresqlPool, runMigration, runSqlPool)
+import Environment (Environment, NewEnvironment, createEnvironment, getEnvironment, listEnvironments)
 import Network.Wai.Handler.Warp (run)
 import Relude
 import Servant
 
+type App = AppM Handler
+
 type EnvironmentAPI =
-  "environments" :> Get '[JSON] [DAO.Environment]
-    :<|> "environments" :> ReqBody '[JSON] Environment :> PostCreated '[JSON] (Maybe Environment)
-    :<|> "environments" :> Capture "id" DAO.ID :> Get '[JSON] Environment
+  "environments" :> Get '[JSON] [Entity Environment]
+    :<|> "environments" :> ReqBody '[JSON] NewEnvironment :> PostCreated '[JSON] (Maybe Environment)
+    :<|> "environments" :> Capture "id" Int64 :> Get '[JSON] Environment
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> Get '[JSON] [Entity DB.Booking]
     :<|> "environments" :> Capture "env_id" DAO.ID :> "bookings" :> ReqBody '[JSON] Booking :> PostCreated '[JSON] DB.Booking
 
-listEnvironments :: AppM [DAO.Environment]
-listEnvironments = asks dbConn >>= liftIO . DB.listEnvironments
-
-getEnvironment :: DAO.ID -> AppM Environment
-getEnvironment i = do
-  e <- asks dbConn >>= liftIO . DB.getEnvironments i
-  case e of
-    Just e -> pure e
-    Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ show i ++ " not found."}
-
-createEnvironment :: Environment -> AppM (Maybe Environment)
-createEnvironment e = asks dbConn >>= liftIO . DB.createEnvironment e
-
-listBookings :: DAO.ID -> AppM [Entity DB.Booking]
+listBookings :: DAO.ID -> App [Entity DB.Booking]
 listBookings envID = asks dbConn >>= liftIO . DB.listBookings envID
 
-createBooking :: DAO.ID -> Booking -> AppM DB.Booking
+createBooking :: DAO.ID -> Booking -> App DB.Booking
 createBooking envID b = do
   b <- asks dbConn >>= liftIO . DB.createBooking envID b
   case b of
-    Nothing -> throwError err404{errBody = JSON.encode $ "Environment with ID " ++ show envID ++ " not found."}
+    Nothing -> throwError err404 {errBody = JSON.encode $ "Environment with ID " ++ show envID ++ " not found."}
     Just b' -> pure b'
 
-server :: ServerT EnvironmentAPI AppM
+getEnvironmentOrError :: Int64 -> App Environment
+getEnvironmentOrError id = do
+  x <- getEnvironment id
+  case x of
+    Just v -> pure v
+    Nothing -> throwError err404 {errBody = JSON.encode ("Resource not found." :: String)}
+
+server :: ServerT EnvironmentAPI App
 server =
-  listEnvironments :<|> createEnvironment :<|> getEnvironment
+  listEnvironments :<|> createEnvironment :<|> getEnvironmentOrError
     :<|> listBookings
     :<|> createBooking
 
 userAPI :: Proxy EnvironmentAPI
 userAPI = Proxy
 
-nt :: AppConfig -> AppM a -> Handler a
+nt :: AppConfig -> App a -> Handler a
 nt s x = runReaderT x s
 
 app :: AppConfig -> Application
@@ -65,4 +63,4 @@ main = do
   putStrLn "running..."
   conn <- runStdoutLoggingT $ createPostgresqlPool "postgresql://booky:booky@localhost" 1
   runSqlPool (runMigration DB.migrateAll) conn
-  run 8081 $ app AppConfig{dbConn = conn}
+  run 8081 $ app AppConfig {dbConn = conn}

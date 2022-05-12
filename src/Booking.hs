@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Booking.Booking
+module Booking
   ( DB.Booking,
     NewBooking (..),
     listBookings,
@@ -22,7 +22,6 @@ where
 
 import Application (AppConfig (dbConn), AppM)
 import qualified Booking.DB as DB
-import qualified DAO
 import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Object), object, (.:), (.=))
 import Data.Aeson.Types (Parser, parseJSON)
 import Data.Pool (Pool)
@@ -51,28 +50,6 @@ currentBookingsForEnvironment :: MonadIO m => Int64 -> AppM m [Entity DB.Booking
 currentBookingsForEnvironment envId = do
   now <- liftIO getCurrentTime
   DB.getActiveBookingsForEnvironment (toSqlKey envId) now
-
--- getStatus :: [DAO.Booking] -> UTCTime -> DAO.EnvironmentStatus
--- getStatus bs t =
---   case find currentBooking bs of
---     Nothing -> DAO.Available
---     Just _ -> DAO.Booked
---   where
---     currentBooking b = bookingStarted b && bookingNotEnded b
---     bookingStarted b = DAO.bookingFrom b <= t
---     bookingNotEnded b = DAO.endTime b >= t
-
--- envWithStatus :: Pool SqlBackend -> Entity Environment -> IO DAO.Environment
--- envWithStatus pool e = do
---   available <- currentBookingsForEnvironment pool (theId e)
---   pure $
---     DAO.Environment
---       { DAO.envID = Just $ theId e,
---         DAO.envStatus = available,
---         DAO.name = "undefined" -- environmentName (entityVal e)
---       }
---   where
---     theId = fromIntegral . fromSqlKey . entityKey
 
 listBookings :: MonadIO m => Int64 -> AppM m [Entity DB.Booking]
 listBookings = DB.getAllBookingsForEnvironment . toSqlKey

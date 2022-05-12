@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Environment.Environment
+module Environment
   ( NewEnvironment (..),
     DB.Environment (..),
     EnvironmentStatus (..),
@@ -22,7 +22,7 @@ module Environment.Environment
 where
 
 import Application (AppM, dbConn)
-import Booking.Booking (currentBookingsForEnvironment)
+import Booking (currentBookingsForEnvironment)
 import qualified Booking.DB as BookingDB
 import Data.Aeson (ToJSON (toJSON), Value (Object), object, (.:), (.=))
 import Data.Aeson.Types (FromJSON (parseJSON))

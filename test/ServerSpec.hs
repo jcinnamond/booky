@@ -5,15 +5,15 @@ module ServerSpec (spec) where
 
 import Api (EnvironmentAPI, app)
 import Application (AppConfig (..))
-import Booking.Booking (NewBooking (..))
+import Booking (NewBooking (..))
 import Booking.DB (migrateBooking)
 import Control.Monad.Logger (runStdoutLoggingT)
 import Data.Pool (Pool)
 import Data.Time (addUTCTime, getCurrentTime)
 import Database.Persist (Entity (..), delete, entityKey, selectList)
 import Database.Persist.Postgresql (SqlBackend, createPostgresqlPool, runMigration, runSqlPool)
+import Environment (Environment (..), EnvironmentStatus (..), EnvironmentWithStatus (..), NewEnvironment (..))
 import Environment.DB (migrateEnvironment)
-import Environment.Environment (Environment (..), EnvironmentStatus (..), EnvironmentWithStatus (..), NewEnvironment (..))
 import Network.HTTP.Client hiding (Proxy, port)
 import qualified Network.Wai.Handler.Warp as Warp
 import Relude

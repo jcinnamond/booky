@@ -4,14 +4,12 @@
 module Api (EnvironmentAPI, app) where
 
 import Application (AppConfig (AppConfig), AppM)
-import Booking.Booking (NewBooking)
-import qualified Booking.Booking as Booking
-import qualified Booking.DB as Booking (Booking)
-import qualified DAO
+import Booking (NewBooking)
+import qualified Booking
 import qualified Data.Aeson as JSON
 import Database.Persist (Entity)
-import Environment.Environment (Environment, EnvironmentWithStatus, NewEnvironment)
-import qualified Environment.Environment as Environment
+import Environment (EnvironmentWithStatus, NewEnvironment)
+import qualified Environment
 import Relude
 import Servant
 import Servant.Server (Handler)

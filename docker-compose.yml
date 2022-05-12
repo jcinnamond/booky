@@ -5,3 +5,10 @@ services:
       POSTGRES_PASSWORD: password
     ports:
       - 5432:5432
+
+  test-db:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: password
+    ports:
+      - 65432:5432

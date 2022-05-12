@@ -24,6 +24,7 @@ library
                  , Environment.Environment
                  , Environment.DB
                  , Application
+                 , Api
   build-depends:       base >= 4.7 && < 5
                      , relude
                      , servant
@@ -41,6 +42,7 @@ library
                      , persistent-postgresql
                      , resource-pool
                      , bytestring
+                     , http-client
  
 executable booky-exe
   hs-source-dirs:      app
@@ -74,9 +76,20 @@ test-suite booky-test
   build-tool-depends: hspec-discover:hspec-discover == 2.*
   other-modules:
       Parser.SimpleSpec
+      ServerSpec
   build-depends:
       base >= 4.7 && < 5
     , relude
     , hspec == 2.*
     , hspec-megaparsec
     , booky
+    , warp
+    , http-client
+    , servant
+    , servant-server
+    , servant-client
+    , persistent
+    , persistent-postgresql
+    , monad-logger
+    , resource-pool
+    , time
